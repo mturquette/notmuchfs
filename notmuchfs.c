@@ -106,7 +106,7 @@ static struct notmuchfs_config global_config;
 /**
  * Whether to enable debug tracing.
  */
-#define NOTMUCHFS_DEBUG 0
+#define NOTMUCHFS_DEBUG 1
 
 /**
  * The maximum length of the X-Label header that notmuchfs will synthesize.
