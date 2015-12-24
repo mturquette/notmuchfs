@@ -385,7 +385,8 @@ typedef struct
   * @{
   */
  notmuch_query_t    *p_query;
- notmuch_messages_t *p_messages;
+ notmuch_threads_t  *p_threads;
+ //notmuch_messages_t *p_threads;
  /** @} */
 
  /** This is for type == OPENDIR_TYPE_BACKING_DIR. */
@@ -465,8 +466,8 @@ static int notmuchfs_opendir (const char* path, struct fuse_file_info* fi)
      dir_fd->next_offset = 1;
      dir_fd->p_query = notmuch_query_create(p_ctx->db, trans_name);
      if (dir_fd->p_query != NULL) {
-       dir_fd->p_messages = notmuch_query_search_messages(dir_fd->p_query);
-       if (dir_fd->p_messages == NULL) {
+       dir_fd->p_threads = notmuch_query_search_threads(dir_fd->p_query);
+       if (dir_fd->p_threads == NULL) {
          notmuch_query_destroy(dir_fd->p_query);
          dir_fd->p_query = NULL;
          database_close(p_ctx);
@@ -505,8 +506,8 @@ static int notmuchfs_releasedir (const char *path, struct fuse_file_info *fi)
  opendir_t *dir_fd = (opendir_t *)(uintptr_t)fi->fh;
  if (dir_fd != NULL) {
    if (dir_fd->type == OPENDIR_TYPE_NOTMUCH_QUERY) {
-     if (dir_fd->p_messages != NULL)
-       notmuch_messages_destroy(dir_fd->p_messages);
+     if (dir_fd->p_threads != NULL)
+       notmuch_threads_destroy(dir_fd->p_threads);
      if (dir_fd->p_query != NULL)
        notmuch_query_destroy(dir_fd->p_query);
 
@@ -615,18 +616,28 @@ static int notmuchfs_readdir (const char            *path,
         break;
       }
 
-      notmuch_message_t *p_message = NULL;
-      while (res == 0 &&
-             (p_message = notmuch_messages_get(dir_fd->p_messages)) != NULL) {
-
-        res = fill_dir_with_message(dir_fd, p_message, buf, filler);
-
-        notmuch_message_destroy(p_message);
-        if (res == INT_MAX) {
-          res = 0;
+      notmuch_thread_t *p_thread = NULL;
+      while ((p_thread = notmuch_threads_get(dir_fd->p_threads)) != NULL) {
+        notmuch_messages_t *p_messages = NULL;
+        if ((p_messages = notmuch_thread_get_messages(p_thread)) == NULL)
           break;
+
+        notmuch_message_t *p_message = NULL;
+        while (res == 0 &&
+             (p_message = notmuch_messages_get(p_messages)) != NULL) {
+          res = fill_dir_with_message(dir_fd, p_message, buf, filler);
+
+          notmuch_message_destroy(p_message);
+          if (res == INT_MAX) {
+            res = 0;
+            break;
+          }
+          //notmuch_messages_move_to_next(dir_fd->p_messages);
+          notmuch_messages_move_to_next(p_messages);
         }
-        notmuch_messages_move_to_next(dir_fd->p_messages);
+        notmuch_thread_destroy(p_thread);
+        //notmuch_messages_move_to_next(dir_fd->p_threads);
+        notmuch_threads_move_to_next(dir_fd->p_threads);
       }
       break;
      }
